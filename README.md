@@ -1,83 +1,69 @@
-# Pi Extension Template
+# pi-codex-web
 
-[![Join dotfield.xyz on Discord](https://img.shields.io/badge/Join%20dotfield.xyz%20on%20Discord-5865F2?logo=discord&logoColor=white)](https://discord.gg/4945dXZVW5)
+Pi extension that exposes Codex's native Responses API web search as Pi tools.
+It talks directly to the Codex Responses endpoint and can reuse the ChatGPT
+credentials stored by Codex in `auth.json`.
 
-[![CI](https://github.com/eiei114/pi-extension-template/actions/workflows/ci.yml/badge.svg)](https://github.com/eiei114/pi-extension-template/actions/workflows/ci.yml)
-[![Publish](https://github.com/eiei114/pi-extension-template/actions/workflows/publish.yml/badge.svg)](https://github.com/eiei114/pi-extension-template/actions/workflows/publish.yml)
-[![npm version](https://img.shields.io/npm/v/create-pi-extension.svg)](https://www.npmjs.com/package/create-pi-extension)
-[![npm downloads](https://img.shields.io/npm/dm/create-pi-extension.svg)](https://www.npmjs.com/package/create-pi-extension)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Pi package](https://img.shields.io/badge/pi-package-purple.svg)](https://pi.dev/packages)
-[![Trusted Publishing](https://img.shields.io/badge/npm-Trusted%20Publishing-blue.svg)](docs/release.md)
-<a href="https://buymeacoffee.com/ekawano114m"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="217" height="60"></a>
+## Tools
 
-> Template for building Pi packages with extensions, Agent Skills, prompts, and themes.
+- `search_query` — live web search, with optional related queries, domains, and freshness hint.
+- `open` — open a URL and return grounded page content.
+- `find_in_page` — find a phrase in a URL.
 
-## What this is
-
-This repository is the **template source** for new Pi extension OSS projects. The published npm package is [`create-pi-extension`](https://www.npmjs.com/package/create-pi-extension) (the scaffold CLI). The repository root is **not** published to npm.
-
-`create-pi-extension` is live on npm — use `bunx create-pi-extension@latest` to scaffold a new project.
-
-## Features
-
-- Interactive `create-pi-extension` CLI for scoped and unscoped package names.
-- TypeScript-first examples for extensions, Agent Skills, prompts, themes, tools, and TUI components.
-- GitHub Actions CI, npm Trusted Publishing, security policy, issue templates, and release automation.
-- Canonical public README with standard badges, install paths, quick start, package contents, and security guidance.
-- Canonical scaffold README shared by CLI-first generation and the GitHub Template setup checklist.
+The implementation follows Codex's request shape: a streamed `POST` to
+`/responses` with a `web_search` tool whose `external_web_access` is `true`.
+It does not spawn `codex exec` or depend on the Codex CLI binary.
 
 ## Install
 
-Create a new Pi extension package with the published CLI:
+From this checkout:
 
 ```bash
-bunx create-pi-extension@latest my-pi-package
+pi -e .
 ```
 
-## Quick start
-
-### Primary path (recommended)
-
-Scaffold a new project with the published CLI:
+From npm after publishing:
 
 ```bash
-bunx create-pi-extension@latest my-pi-package
+pi install npm:pi-codex-web
 ```
 
-The CLI copies the bundled template, replaces placeholders, removes bootstrap docs, and can run `git init` plus `bun install`. See [`docs/template-checklist.md`](docs/template-checklist.md) for the minimal follow-up checklist.
+## Authentication
 
-For a scoped package name:
+By default the extension reads `~/.codex/auth.json`, or
+`$CODEX_HOME/auth.json` when `CODEX_HOME` is set. Set
+`CODEX_WEB_AUTH_PATH` to use another file.
 
-```bash
-bunx create-pi-extension@latest @my-scope/my-pi-tool
-```
+The supported Codex file shape is the normal ChatGPT token form with
+`tokens.access_token`, `tokens.refresh_token`, and `tokens.account_id`. On a
+401 response the extension uses the same OAuth refresh client ID and scope as
+Codex, writes the rotated credentials back to the auth file, and retries once.
 
-### Secondary path: GitHub Template
+API-key auth files containing `OPENAI_API_KEY` are also accepted. In that case
+the default endpoint is `https://api.openai.com/v1`.
 
-Create a repository from this template when you prefer GitHub-first onboarding:
+## Configuration
 
-```bash
-gh repo create OWNER/my-pi-package \
-  --template eiei114/pi-extension-template \
-  --clone
-```
+Environment variables:
 
-Then follow the **Secondary path** section in [`docs/template-checklist.md`](docs/template-checklist.md) for manual placeholder replacement, metadata, and post-generation cleanup.
-That checklist first copies `scaffold/package-readme.md` to `README.md`, giving GitHub Template users the same standard badges and README structure as CLI-generated packages.
+| Variable                 | Default                                 | Purpose                                    |
+| ------------------------ | --------------------------------------- | ------------------------------------------ |
+| `CODEX_HOME`             | `~/.codex`                              | Directory containing `auth.json`           |
+| `CODEX_WEB_AUTH_PATH`    | `$CODEX_HOME/auth.json`                 | Explicit auth file path                    |
+| `CODEX_WEB_MODEL`        | `gpt-6-luna`                            | Responses API model                        |
+| `CODEX_WEB_BASE_URL`     | `https://chatgpt.com/backend-api/codex` | ChatGPT/Codex Responses base URL           |
+| `CODEX_WEB_API_BASE_URL` | `https://api.openai.com/v1`             | Base URL used for API-key auth             |
+| `CODEX_WEB_ORIGINATOR`   | `codex_cli_rs`                          | Codex-compatible request originator header |
 
-## Legacy npm package
+## Source reference
 
-Do **not** use `pi install npm:pi-extension-template` as the main onboarding path. That legacy [`pi-extension-template`](https://www.npmjs.com/package/pi-extension-template) npm package predates the scaffold CLI and is not maintained as the onboarding artifact. Use **`create-pi-extension`** to scaffold a new project instead. After you publish your own extension, install it with `pi install npm:YOUR_PACKAGE_NAME` as documented in that project's README.
+The wire format was derived from the Codex Rust source at the `rust-v0.105.0`
+tag:
 
-## Package contents
-
-| Path | Purpose |
-|---|---|
-| Repository root | Template source (not published to npm) |
-| `packages/create-pi-extension/` | Published scaffold CLI |
-| `scaffold/` | Generated-package README source synced into the bundled template |
-| `docs/` | Maintainer docs and template bootstrap guides |
+- [`ToolSpec::WebSearch`](https://github.com/openai/codex/blob/rust-v0.105.0/codex-rs/core/src/client_common.rs)
+- [`ResponsesApiRequest`](https://github.com/openai/codex/blob/rust-v0.105.0/codex-rs/codex-api/src/common.rs)
+- [`WebSearchAction`](https://github.com/openai/codex/blob/rust-v0.105.0/codex-rs/protocol/src/models.rs)
+- [`ResponsesClient`](https://github.com/openai/codex/blob/rust-v0.105.0/codex-rs/codex-api/src/endpoint/responses.rs)
 
 ## Development
 
@@ -86,37 +72,16 @@ npm install
 npm run ci
 ```
 
-`npm run ci` runs typecheck, `sync:template`, tests, `review:guardrails`, a `create-pi-extension` pack check, and template sync assertions.
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`docs/template-sync.md`](docs/template-sync.md).
-
-## Release
-
-Releases publish **`create-pi-extension`** to npm through Trusted Publishing. The root template source is not published.
-
-See [`docs/release.md`](docs/release.md) for setup details.
-
-## Docs
-
-- [`docs/template-checklist.md`](docs/template-checklist.md) — Primary vs Secondary setup flows
-- [`docs/template-sync.md`](docs/template-sync.md) — refresh `packages/create-pi-extension/template/` before CLI publish
-- [`docs/template-sync-checklist.md`](docs/template-sync-checklist.md) — checklist for syncing and verifying the bundled template
-- [`docs/examples.md`](docs/examples.md) — extension, skill, prompt, and theme examples
-- [`docs/release.md`](docs/release.md) — Trusted Publishing and monorepo publish path
-- [`docs/publish-local-validation.md`](docs/publish-local-validation.md) — local checks before merge or publish dispatch
-- [`ROADMAP.md`](ROADMAP.md) — current status, priorities, and the maintenance seed backlog
+The tests use a mocked SSE Responses endpoint, so they do not send credentials
+or network requests.
 
 ## Security
 
-Pi packages can execute code with your local permissions. Review extensions before installing third-party packages.
+This extension reads local Codex credentials and sends them to the configured
+Responses endpoint. Keep `auth.json` private and review the endpoint-related
+environment variables before loading third-party extensions.
 
-For vulnerability reporting, see [`SECURITY.md`](SECURITY.md).
-
-## Links
-
-- npm (`create-pi-extension`): https://www.npmjs.com/package/create-pi-extension
-- GitHub: https://github.com/eiei114/pi-extension-template
-- Issues: https://github.com/eiei114/pi-extension-template/issues
+See [`SECURITY.md`](SECURITY.md) for vulnerability reports.
 
 ## License
 
